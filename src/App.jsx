@@ -3,11 +3,14 @@ import "./App.css";
 import card_data from "./card_data";
 
 import similar_categories from "./similar_categories";
+import mentors_data from "./random_mentors";
 
 const API = "https://matchmaking-api.onrender.com/matches";
 
 const getSimilarCategory = (category) => {
   const similarCategory = similar_categories[category];
+
+  console.log("similarCategory", similarCategory);
 
   return similarCategory[Math.floor(Math.random() * similarCategory.length)];
 };
@@ -44,13 +47,12 @@ function App() {
 
   const [stop, setStop] = useState(false);
 
-  const [asked, setAsked] = useState([]);
+  const [asked, setAsked] = useState([card]);
+
+  const [matches, setMatches] = useState([]);
 
   const nextSkillInterest = () => {
     const nextSkillInterest = skillsInterests.shift();
-
-    console.log("nextSkillInterest", nextSkillInterest);
-    console.log("skillsInterests after popping", skillsInterests);
 
     if (nextSkillInterest) {
       setSkillsInterests(skillsInterests);
@@ -58,7 +60,12 @@ function App() {
       setCard(nextSkillInterest);
       setAsked([...asked, nextSkillInterest]);
     } else {
-      const similarCategory = getSimilarCategory(category);
+      let similarCategory = getSimilarCategory(category);
+      console.log("similarCategory", similarCategory);
+      console.log("asked", asked);
+      while (asked.includes(similarCategory)) {
+        similarCategory = getSimilarCategory(category);
+      }
 
       setCard(similarCategory);
       setCategory(similarCategory);
@@ -67,19 +74,8 @@ function App() {
   };
 
   const likeChecked = () => {
-    console.log("liked card", card);
-
-    console.log("counter", counter);
-    console.log("menteeData", menteeData);
-
     if (categories.includes(card)) {
       let randomSkillsInterests = getRandomSkillsInterests(card);
-
-      while (asked.filter((item) => randomSkillsInterests.includes(item)) > 0) {
-        randomSkillsInterests = getRandomSkillsInterests(card);
-      }
-
-      console.log("randomSkillsInterests", randomSkillsInterests);
 
       const firstSkillInterest = randomSkillsInterests.shift();
       setCard(firstSkillInterest);
@@ -87,7 +83,7 @@ function App() {
       setSkillsInterests(randomSkillsInterests);
       setAsked([...asked, randomSkillsInterests[0]]);
     } else {
-      if (counter == 5) {
+      if (counter == 10) {
         setCounter(0);
         setCard(menteeData);
         setStop(true);
@@ -102,19 +98,17 @@ function App() {
   };
 
   const dislikeChecked = () => {
-    console.log("disliked card", card);
-
-    console.log("counter", counter);
-    console.log("menteeData", menteeData);
-
     if (categories.includes(card)) {
       let similarCategory = getSimilarCategory(card);
-
+      console.log("similarCategory", similarCategory);
+      console.log("asked", asked);
       while (asked.includes(similarCategory)) {
+        console.log("asked", asked);
         similarCategory = getSimilarCategory(card);
       }
 
       setCard(similarCategory);
+      setCategory(similarCategory);
       setAsked([...asked, similarCategory]);
     } else {
       nextSkillInterest();
@@ -122,61 +116,122 @@ function App() {
   };
 
   useEffect(() => {
-    const postMatch = async () => {
-      fetch(API, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify(menteeData),
-        mode: "cors",
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          console.log("Success:", data);
+    if (stop) {
+      const postMatch = async () => {
+        fetch(API, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(menteeData),
+          mode: "cors",
         })
-        .catch((error) => {
-          console.error("Error:", error);
-        });
-    };
+          .then((response) => response.json())
+          .then((data) => {
+            console.log("Success:", data);
+            if (data["matches"].length > 0) {
+              const matches_data = data["matches"].map((match) => {
+                return {
+                  mentor: match["mentor"],
+                  data: mentors_data[match["mentor"]],
+                };
+              });
+              setMatches(matches_data);
+            }
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+          });
+      };
 
-    postMatch();
+      postMatch();
+    }
   }, [stop]);
 
   return (
     <>
       <div className="App">
-        <p> {card} </p>
+        <h1>matchmaking</h1>
 
-        {!stop && (
+        {matches.length > 0 ? (
           <div>
-            <label>Like</label>
-            <input
-              type="checkbox"
-              name="like"
-              value="like"
-              onClick={() => {
-                likeChecked();
-                // uncheck
-                document.getElementsByName("like")[0].checked = false;
-              }}
-            />
+            <h2>Matches</h2>
+            <p>
+              {" "}
+              <ol>
+                {matches.map((match) => (
+                  <li key={match}>
+                    {match["mentor"]}
+                    <br />
+                    Categories
+                    <ul>
+                      {match["data"]["categories"].map((category) => (
+                        <li key={category}>{category}</li>
+                      ))}
+                    </ul>
+                    <br />
+                    Skills
+                    <ul>
+                      {match["data"]["skills"].map((skill) => (
+                        <li key={skill}>{skill}</li>
+                      ))}
+                    </ul>
+                    <br />
+                    Interests
+                    <ul>
+                      {match["data"]["interests"].map((interest) => (
+                        <li key={interest}>{interest}</li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ol>
+            </p>
+          </div>
+        ) : (
+          <div>
+            <h2>Category: {category} </h2>
 
-            <label>Dislike</label>
+            <p> {card} </p>
 
-            <input
-              type="checkbox"
-              name="dislike"
-              value="dislike"
-              onClick={() => {
-                dislikeChecked();
-                // uncheck
-                document.getElementsByName("dislike")[0].checked = false;
-              }}
-            />
+            {!stop && (
+              <div>
+                <label>Like</label>
+                <input
+                  type="checkbox"
+                  name="like"
+                  value="like"
+                  onClick={() => {
+                    likeChecked();
+                    // uncheck
+                    document.getElementsByName("like")[0].checked = false;
+                  }}
+                />
+
+                <label>Dislike</label>
+
+                <input
+                  type="checkbox"
+                  name="dislike"
+                  value="dislike"
+                  onClick={() => {
+                    dislikeChecked();
+                    // uncheck
+                    document.getElementsByName("dislike")[0].checked = false;
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
+
+        <h2>Your likes</h2>
+        <p>
+          {" "}
+          {menteeData.map((item) => (
+            <li key={item}>{item}</li>
+          ))}{" "}
+        </p>
       </div>
     </>
   );
